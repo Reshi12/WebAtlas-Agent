@@ -202,3 +202,54 @@ def run_agent(task: str, config: dict[str, Any], dry_run: bool = False) -> None:
                 last_state = {**last_state, **update}
 
                 # ── Handle interrupts ────────────────────────────────────
+                if node_name == "safety_gate":
+                    status = last_state.get("status", "running")
+                    if status in ("awaiting_human", "awaiting_payment_resume"):
+                        reason = last_state.get("interrupt_reason", "")
+                        message = last_state.get("interrupt_message", "")
+                        console.print(f"\n[bold yellow]⚠️ INTERRUPT:[/bold yellow] {reason}")
+                        console.print(f"[yellow]{message}[/yellow]")
+                        # We just exit out here; a real app would prompt and resume
+                        return
+
+        # ── Final state check ────────────────────────────────────────────
+        status = last_state.get("status", "running")
+        if status == "done":
+            history = last_state.get("step_history", [])
+            if history:
+                final_result = history[-1].get("result", "No result returned.")
+                console.print(f"\n[bold cyan]Result:[/bold cyan]\n{final_result}")
+            console.print("\n[bold green]🎉 Task completed successfully.[/bold green]")
+        elif status == "failed":
+            console.print("\n[bold red]❌ Task failed after maximum retries or fatal error.[/bold red]")
+
+    except Exception as e:
+        console.print(f"\n[bold red]Agent API Error:[/bold red] {e}")
+        if "RetryError" in str(type(e)):
+            console.print("[red]The API failed repeatedly (likely due to rate limits or daily quota exhaustion).[/red]")
+            console.print("[yellow]Tip: Your current API key might have reached its daily free limit. Try again tomorrow or use a different API key.[/yellow]")
+
+import argparse
+import yaml
+
+def main():
+    parser = argparse.ArgumentParser(description="Autonomous Browser Agent")
+    parser.add_argument("task", type=str, help="The task to perform", nargs="?")
+    parser.add_argument("--config", type=str, default="config.yaml", help="Path to config file")
+    parser.add_argument("--dry-run", action="store_true", help="Dry run without browser execution")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    
+    args = parser.parse_args()
+    if not args.task:
+        parser.print_help()
+        return
+        
+    setup_logging(verbose=args.verbose)
+    
+    with open(args.config, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+        
+    run_agent(args.task, config, dry_run=args.dry_run)
+
+if __name__ == "__main__":
+    main()
