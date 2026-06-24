@@ -206,3 +206,55 @@ def build_graph(
             "end_node": "end_node",
         },
     )
+
+    # Both backends → safety_gate
+    graph.add_edge("agent_browser_actor", "safety_gate")
+    graph.add_edge("webwright_actor", "safety_gate")
+
+    # Safety gate → verifier (safe) or human_interrupt (unsafe)
+    graph.add_conditional_edges(
+        "safety_gate",
+        check_safety,
+        {
+            "verifier": "verifier",
+            "human_interrupt": "human_interrupt",
+        },
+    )
+
+    # Human interrupt → router (resume and continue)
+    graph.add_edge("human_interrupt", "router")
+
+    # Verifier → advance (success) or retry/replan (failure)
+    graph.add_conditional_edges(
+        "verifier",
+        check_verification,
+        {
+            "advance_step": "advance_step",
+            "router": "router",  # retry
+            "replan": "replan",
+            "end_node": "end_node",
+        },
+    )
+
+    # Advance → router (more steps) or end
+    graph.add_conditional_edges(
+        "advance_step",
+        check_more_steps,
+        {
+            "router": "router",
+            "end_node": "end_node",
+        },
+    )
+
+    # Replan → router (retry with revised plan)
+    graph.add_edge("replan", "router")
+
+    # End → END
+    graph.add_edge("end_node", END)
+
+    # ── Compile with checkpointer ────────────────────────────────────────
+    checkpointer = MemorySaver()
+    compiled = graph.compile(checkpointer=checkpointer)
+
+    logger.info("Graph compiled successfully — %d nodes", len(graph.nodes))
+    return compiled
