@@ -154,3 +154,55 @@ def end_node(state: AgentState) -> dict[str, Any]:
 
 
 # ── Graph builder ────────────────────────────────────────────────────────────
+
+
+def build_graph(
+    llm: AgentLLM,
+    browser: BrowserSession,
+    config: dict[str, Any],
+) -> Any:
+    """Build and compile the full LangGraph state machine.
+
+    Returns a compiled graph ready for ``.invoke()`` or ``.stream()``.
+    """
+    logger.info("Building LangGraph state machine...")
+
+    graph = StateGraph(AgentState)
+
+    # ── Create node functions with closed-over dependencies ──────────────
+    planner = make_planner_node(llm, config)
+    replan = make_replan_node(llm, config)
+    ab_actor = make_agent_browser_actor_node(llm, browser, config)
+    ww_actor = make_webwright_actor_node(llm, config)
+    safety_gate = make_safety_gate_node(llm, config)
+    verifier = make_verifier_node(llm, config)
+    human_interrupt = make_human_interrupt_node(config)
+
+    # ── Register nodes ───────────────────────────────────────────────────
+    graph.add_node("planner", planner)
+    graph.add_node("router", lambda state: state)  # pass-through for routing
+    graph.add_node("agent_browser_actor", ab_actor)
+    graph.add_node("webwright_actor", ww_actor)
+    graph.add_node("safety_gate", safety_gate)
+    graph.add_node("verifier", verifier)
+    graph.add_node("human_interrupt", human_interrupt)
+    graph.add_node("advance_step", advance_step_node)
+    graph.add_node("replan", replan)
+    graph.add_node("end_node", end_node)
+
+    # ── Wire edges ───────────────────────────────────────────────────────
+
+    # START → planner → router
+    graph.add_edge(START, "planner")
+    graph.add_edge("planner", "router")
+
+    # Router → backend (conditional)
+    graph.add_conditional_edges(
+        "router",
+        route_to_backend,
+        {
+            "agent_browser_actor": "agent_browser_actor",
+            "webwright_actor": "webwright_actor",
+            "end_node": "end_node",
+        },
+    )
