@@ -280,3 +280,97 @@ Result:
 
 ### config.yaml Structure
 
+```yaml
+# LLM Configuration
+llm:
+  provider: gemini                # groq | gemini | openai | openai_compatible
+  model: gemini-flash-lite-latest # Model selection
+  temperature: 0.1                # Deterministic behavior (0.0-1.0)
+  max_tokens: 4096                # Output limit
+  timeout_seconds: 60             # API timeout
+
+# Safety Rules
+safety:
+  max_retries: 1                  # Retry attempts before hard fail
+  
+  payment_url_keywords:
+    - checkout
+    - payment
+    - stripe.com
+    - razorpay.com
+  
+  personal_info_fields:
+    - credit card
+    - cvv
+    - ssn
+    - email
+    - phone
+  
+  destructive_action_keywords:
+    - delete
+    - cancel
+    - unsubscribe
+
+# Browser Automation Settings
+agent_browser:
+  binary: agent-browser
+  default_wait: networkidle        # Wait until no network activity
+  wait_timeout_ms: 30000           # Max 30 seconds per page load
+  headless: true                   # Run without visible browser
+  parallel_tasks: 3                # Concurrent browser instances
+
+# Research Mode Settings
+research:
+  max_pages: 5                     # Limit concurrent scrapes
+  page_timeout_seconds: 20         # Per-page timeout
+  retry_on_failure: true           # Retry failed pages
+
+# Logging & Persistence
+logging:
+  level: INFO                      # DEBUG | INFO | WARNING | ERROR
+  screenshots: true                # Capture page state
+  save_snapshots: true             # Save DOM snapshots
+  log_dir: logs
+  retention_days: 30               # Auto-cleanup old logs
+```
+
+---
+
+---
+
+<a id="api-reference"></a>
+## 📋 API Reference
+
+### CLI Commands
+
+```bash
+# Basic execution
+python main.py "Your instruction"
+
+# Plan without execution
+python main.py --dry-run "Your instruction"
+
+# Resume interrupted task
+python main.py --resume <task_id>
+
+# List all tasks
+python main.py --list-tasks
+
+# Show task status
+python main.py --status <task_id>
+
+# Verbose logging
+python main.py -v "Your instruction"
+
+# Specific config file
+python main.py --config /path/to/config.yaml "Your instruction"
+```
+
+### Execution States
+
+| State | Meaning |
+|-------|---------|
+| `running` | Task actively executing |
+| `awaiting_human` | Waiting for user confirmation (credentials, payment) |
+| `awaiting_payment_resume` | Paused at payment page, awaiting permission to continue |
+| `done` | Successfully completed |
