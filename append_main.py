@@ -8,3 +8,8 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Dry run without browser execution")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     
+    args = parser.parse_args()
+    if not args.task:
+        parser.print_help()
+        return
+        
