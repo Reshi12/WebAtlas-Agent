@@ -100,3 +100,54 @@ class BrowserSession:
 
     def check(self, ref: str) -> dict[str, Any]:
         """Check a checkbox by its @eN ref."""
+        return self._run([self.binary, "check", ref, "--json"])
+
+    def type_text(self, ref: str, text: str) -> dict[str, Any]:
+        """Type text into a field (keystroke-by-keystroke)."""
+        return self._run([self.binary, "type", ref, text, "--json"])
+
+    def press(self, key: str) -> dict[str, Any]:
+        """Press a keyboard key (Enter, Tab, Escape, etc.)."""
+        return self._run([self.binary, "press", key, "--json"])
+
+    def scroll(self, direction: str = "down", amount: int = 3) -> dict[str, Any]:
+        """Scroll the page."""
+        return self._run([self.binary, "scroll", direction, str(amount), "--json"])
+
+    # ── Navigation ───────────────────────────────────────────────────────
+
+    def goto(self, url: str) -> dict[str, Any]:
+        """Navigate to a URL."""
+        return self._run([self.binary, "goto", url, "--json"])
+
+    def back(self) -> dict[str, Any]:
+        """Go back in browser history."""
+        return self._run([self.binary, "back", "--json"])
+
+    def wait(self, strategy: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        """Wait for page to settle."""
+        strategy = strategy or self.default_wait
+        cmd = [self.binary, "wait"]
+        
+        if strategy in ("networkidle", "load", "domcontentloaded"):
+            cmd.extend(["--load", strategy])
+        elif strategy.isdigit():
+            cmd.append(strategy)
+        else:
+            import shlex
+            cmd.extend(shlex.split(strategy))
+
+        if "timeout" in kwargs:
+            cmd += ["--timeout", str(kwargs["timeout"])]
+        cmd.append("--json")
+        return self._run(cmd)
+
+    # ── Page info ────────────────────────────────────────────────────────
+
+    def get_url(self) -> str:
+        """Get the current page URL."""
+        result = self._run([self.binary, "get", "url", "--json"])
+        if result.get("success") and "data" in result:
+            return result["data"].get("url", "")
+        return ""
+
