@@ -91,3 +91,32 @@ def extract_page_data_sync(
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(
+                    asyncio.run,
+                    extract_page_data(url, extraction_schema, css_selector),
+                )
+                return future.result(timeout=60)
+        else:
+            return loop.run_until_complete(
+                extract_page_data(url, extraction_schema, css_selector)
+            )
+    except RuntimeError:
+        return asyncio.run(
+            extract_page_data(url, extraction_schema, css_selector)
+        )
+
+
+def _apply_schema(content: str, schema: dict[str, Any]) -> dict[str, Any]:
+    """Best-effort structured extraction against a schema.
+
+    For now this is a simple field-matching pass. A more sophisticated
+    implementation could use an LLM to map free-text content to the schema.
+    """
+    # Placeholder: return the content keyed under the schema's expected fields
+    fields = schema.get("properties", schema.get("fields", {}))
+    result: dict[str, Any] = {}
+    for field_name in fields:
+        # Simple heuristic: look for the field name in the content
+        result[field_name] = None  # Would need LLM or regex to fill properly
+    result["_raw_content"] = content[:5000]
+    return result
