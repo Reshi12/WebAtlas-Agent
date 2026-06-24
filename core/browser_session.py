@@ -151,3 +151,54 @@ class BrowserSession:
             return result["data"].get("url", "")
         return ""
 
+    def get_title(self) -> str:
+        """Get the current page title."""
+        result = self._run([self.binary, "get", "title", "--json"])
+        if result.get("success") and "data" in result:
+            return result["data"].get("title", "")
+        return ""
+
+    def screenshot(self, path: str) -> dict[str, Any]:
+        """Save a screenshot of the current page."""
+        return self._run([self.binary, "screenshot", path, "--json"])
+
+    # ── Dialog handling ──────────────────────────────────────────────────
+
+    def dialog_accept(self, text: str | None = None) -> dict[str, Any]:
+        """Accept a browser dialog (alert/confirm/prompt)."""
+        cmd = [self.binary, "dialog", "accept"]
+        if text:
+            cmd += [text]
+        cmd.append("--json")
+        return self._run(cmd)
+
+    def dialog_dismiss(self) -> dict[str, Any]:
+        """Dismiss a browser dialog."""
+        return self._run([self.binary, "dialog", "dismiss", "--json"])
+
+    # ── Tab management ───────────────────────────────────────────────────
+
+    def list_tabs(self) -> dict[str, Any]:
+        """List all open tabs."""
+        return self._run([self.binary, "tab", "list", "--json"])
+
+    def switch_tab(self, index: int) -> dict[str, Any]:
+        """Switch to a tab by index."""
+        return self._run([self.binary, "tab", "select", str(index), "--json"])
+
+    # ── Internal ─────────────────────────────────────────────────────────
+
+    def _run(self, cmd: list[str], timeout: int = 60) -> dict[str, Any]:
+        """Run an agent-browser CLI command and parse JSON output.
+
+        Returns the parsed JSON dict on success, or an error dict on failure.
+        """
+        logger.debug("agent-browser cmd: %s", " ".join(cmd))
+        try:
+            import os
+            creationflags = 0
+            if os.name == "nt":
+                creationflags = subprocess.CREATE_NO_WINDOW
+
+            env = os.environ.copy()
+            env["AGENT_BROWSER_HEADED"] = "1"
