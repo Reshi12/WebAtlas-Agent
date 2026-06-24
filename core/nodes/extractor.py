@@ -29,3 +29,34 @@ async def extract_page_data(
     Returns:
         Dict with ``success``, ``content`` (markdown), ``extracted_data``
         (if schema provided), and ``metadata``.
+    """
+    try:
+        from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+    except ImportError:
+        logger.error("crawl4ai not installed: pip install crawl4ai")
+        return {
+            "success": False,
+            "error": "crawl4ai not installed: pip install crawl4ai",
+        }
+
+    try:
+        config_kwargs: dict[str, Any] = {}
+        if css_selector:
+            config_kwargs["css_selector"] = css_selector
+
+        run_config = CrawlerRunConfig(**config_kwargs) if config_kwargs else None
+
+        async with AsyncWebCrawler() as crawler:
+            result = await crawler.arun(
+                url=url,
+                config=run_config,
+            )
+
+            output: dict[str, Any] = {
+                "success": result.success,
+                "content": result.markdown or "",
+                "url": url,
+                "metadata": {
+                    "title": getattr(result, "title", ""),
+                    "status_code": getattr(result, "status_code", None),
+                },
