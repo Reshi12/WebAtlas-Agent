@@ -186,3 +186,97 @@ graph TD
         │  │  • Layer 1: Fast pattern detection                     │  │
         │  │  • Layer 2: LLM contextual classification              │  │
         │  │  • Layer 3: Human confirmation for sensitive ops       │  │
+        │  └────────────────────────────────────────────────────────┘  │
+        │                              ↓                               │
+        │  ┌────────────────────────────────────────────────────────┐  │
+        │  │  Verification & Adaptation Layer                       │  │
+        │  │  • Outcome validation                                  │  │
+        │  │  • Adaptive retry/replan logic                         │  │
+        │  │  • State persistence                                   │  │
+        │  └────────────────────────────────────────────────────────┘  │
+        │                                                              │
+        │  ┌─ State Persistence ────────────────────────────────────┐  │
+        │  │  • Checkpoint-based resume capability                  │  │
+        │  │  • Token accounting and reporting                      │  │
+        │  │  • Complete audit trail with artifacts                 │  │
+        │  └────────────────────────────────────────────────────────┘  │
+        │                                                              │
+        └──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+<a id="quick-start"></a>
+## 🚀 Quick Start
+
+### Prerequisites
+- **Python 3.10+**
+- **Node.js & npm** (for browser automation backend)
+- **LLM API Key** (Gemini, Groq, OpenAI, or compatible provider)
+- **Disk space**: ~500MB for dependencies and logs
+
+### Installation
+
+1. **Clone repository:**
+   ```bash
+   git clone https://github.com/yourusername/webatlas-agent.git
+   cd webatlas-agent
+   ```
+
+2. **Create virtual environment:**
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate  # Windows
+   source .venv/bin/activate  # macOS/Linux
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   npm i -g agent-browser && agent-browser install
+   ```
+
+4. **Configure:**
+   ```bash
+   cp config.yaml.example config.yaml
+   # Edit config.yaml with your settings
+   ```
+
+5. **Set credentials:**
+   ```bash
+   # .env file
+   GEMINI_API_KEY=your_key_here
+   GROQ_API_KEY=your_key_here        # Optional
+   OPENAI_API_KEY=your_key_here      # Optional
+   ```
+
+### First Task
+
+```bash
+python main.py "Search for information about quantum computing and summarize key concepts"
+```
+
+**Output:**
+```
+🚀 Task: search_summarize_quantum (ID: task_20260624_142530)
+
+📋 Execution Plan:
+  1. 🔎 Research: Gather quantum computing resources
+  2. 🌐 Interactive: Verify and extract key concepts
+  3. 🔎 Research: Aggregate definitions
+
+⏱️  Duration: 1m 02s | Tokens: 2,847 
+
+Result:
+[Structured findings with sources and citations]
+
+✅ Task completed successfully
+```
+
+---
+
+<a id="configuration"></a>
+## 🔧 Configuration
+
+### config.yaml Structure
+
