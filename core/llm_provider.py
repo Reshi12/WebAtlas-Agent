@@ -110,3 +110,59 @@ class GeminiProvider:
             role = "user" if msg["role"] == "user" else "model"
             contents.append(
                 self.types.Content(
+                    role=role, 
+                    parts=[self.types.Part.from_text(text=msg["content"])]
+                )
+            )
+
+        config = self.types.GenerateContentConfig(
+            system_instruction=system,
+            temperature=temperature if temperature is not None else self.default_temperature,
+            response_mime_type="application/json" if json_mode else "text/plain",
+        )
+        
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=contents,
+            config=config,
+        )
+
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            self._total_tokens += getattr(response.usage_metadata, "total_token_count", 0)
+        return response.text or ""
+
+    @property
+    def total_tokens(self) -> int:
+        return self._total_tokens
+
+
+class OpenAICompatibleProvider:
+    """OpenAI-compatible provider (OpenAI, Nemotron via NIM, GLM, etc.)."""
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        base_url: str | None = None,
+        default_temperature: float = 0.1,
+    ):
+        try:
+            from openai import OpenAI
+        except ImportError as exc:
+            raise ImportError("openai package required: pip install openai") from exc
+        client_kwargs: dict[str, Any] = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        self.client = OpenAI(**client_kwargs)
+        self.model = model
+        self.default_temperature = default_temperature
+        self._total_tokens = 0
+
+    @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=20))
+    def complete(
+        self,
+        system: str,
+        messages: list[dict[str, str]],
+        json_mode: bool = False,
+        temperature: float | None = None,
+    ) -> str:
