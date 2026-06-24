@@ -50,3 +50,55 @@ def route_to_backend(state: AgentState) -> str:
 
     if idx >= len(plan):
         return "end_node"
+
+    backend = plan[idx].get("backend", "agent_browser")
+    logger.info(
+        "[router] Step %d/%d → %s: %s",
+        idx + 1, len(plan), backend, plan[idx].get("step", ""),
+    )
+
+    if backend == "webwright":
+        return "webwright_actor"
+    return "agent_browser_actor"
+
+
+def check_safety(state: AgentState) -> str:
+    """After the safety gate, route to verifier (safe) or interrupt (unsafe)."""
+    status = state.get("status", "running")
+    if status in ("awaiting_human", "awaiting_payment_resume"):
+        return "human_interrupt"
+    return "verifier"
+
+
+def check_verification(state: AgentState) -> str:
+    """After verification, decide: advance, retry, or replan."""
+    error = state.get("error_message")
+    retry_count = state.get("retry_count", 0)
+    max_retries = state.get("max_retries", 2)
+    status = state.get("status", "running")
+
+    if status == "done":
+        return "end_node"
+
+    if error is None:
+        # Success
+        return "advance_step"
+    elif retry_count <= max_retries:
+        # Retry
+        return "router"
+    else:
+        # Exhausted retries → replan
+        return "replan"
+
+
+def check_more_steps(state: AgentState) -> str:
+    """After advancing, check if there are more steps or we're done."""
+    plan = state.get("plan", [])
+    idx = state.get("current_step_index", 0)
+    status = state.get("status", "running")
+
+    if status in ("done", "failed"):
+        return "end_node"
+
+    if idx >= len(plan):
+        return "end_node"
