@@ -49,3 +49,54 @@ class BrowserSession:
         return self._run([self.binary, "state", "save", path, "--json"])
 
     def load_state(self, path: str) -> dict[str, Any]:
+        """Restore browser state from a previously saved file."""
+        return self._run([self.binary, "--state", path, "--json"])
+
+    # ── Snapshot ─────────────────────────────────────────────────────────
+
+    def snapshot(self) -> dict[str, Any]:
+        """Get the current page's accessibility-tree snapshot.
+
+        Returns the parsed JSON envelope::
+
+            {
+                "success": true,
+                "data": {
+                    "snapshot": "...",
+                    "refs": {"e1": {"role": "...", "name": "..."}, ...}
+                }
+            }
+        """
+        cmd = [self.binary, "snapshot"] + self.snapshot_flags
+        return self._run(cmd)
+
+    def get_snapshot_text(self) -> str:
+        """Return the compact snapshot text (the part fed to the LLM)."""
+        result = self.snapshot()
+        if result.get("success") and "data" in result:
+            return result["data"].get("snapshot", "")
+        return ""
+
+    def get_refs(self) -> dict[str, dict[str, str]]:
+        """Return the interactive element refs from the latest snapshot."""
+        result = self.snapshot()
+        if result.get("success") and "data" in result:
+            return result["data"].get("refs", {})
+        return {}
+
+    # ── Actions ──────────────────────────────────────────────────────────
+
+    def click(self, ref: str) -> dict[str, Any]:
+        """Click an element by its @eN ref."""
+        return self._run([self.binary, "click", ref, "--json"])
+
+    def fill(self, ref: str, value: str) -> dict[str, Any]:
+        """Fill a text field by its @eN ref."""
+        return self._run([self.binary, "fill", ref, value, "--json"])
+
+    def select(self, ref: str, value: str) -> dict[str, Any]:
+        """Select a dropdown option by its @eN ref."""
+        return self._run([self.binary, "select", ref, value, "--json"])
+
+    def check(self, ref: str) -> dict[str, Any]:
+        """Check a checkbox by its @eN ref."""
