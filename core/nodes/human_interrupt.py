@@ -54,3 +54,31 @@ def make_human_interrupt_node(config: dict[str, Any]):
             return {
                 "status": "running",
                 "interrupt_reason": None,
+                "interrupt_message": None,
+                "retry_count": 0,
+            }
+
+        elif reason == "login":
+            # User logged in manually
+            logger.info("[human_interrupt] Login completed by user — resuming")
+            return {
+                "status": "running",
+                "interrupt_reason": None,
+                "interrupt_message": None,
+                "retry_count": 0,
+            }
+
+        elif reason == "personal_info":
+            # User filled in personal fields
+            logger.info("[human_interrupt] Personal info filled by user — resuming")
+            return {
+                "status": "running",
+                "interrupt_reason": None,
+                "interrupt_message": None,
+                # Don't reset retry_count here — the next action
+                # will be the submit confirmation
+            }
+
+        elif reason == "destructive":
+            # User confirmed or denied a destructive action
+            if response_lower in ("yes", "y", "proceed", "confirm"):
