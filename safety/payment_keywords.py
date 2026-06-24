@@ -73,3 +73,28 @@ def check_payment_text(snapshot_text: str, keywords: set[str]) -> bool:
 
 
 def detect_personal_info_fields(
+    field_labels: list[str], personal_fields: set[str]
+) -> tuple[list[str], list[str]]:
+    """Split form fields into agent-fillable vs human-required.
+
+    Returns:
+        (agent_fillable, human_required) — two lists of field labels.
+    """
+    agent_fillable: list[str] = []
+    human_required: list[str] = []
+
+    for label in field_labels:
+        label_lower = label.lower().strip()
+        is_personal = any(pf in label_lower for pf in personal_fields)
+        if is_personal:
+            human_required.append(label)
+        else:
+            agent_fillable.append(label)
+
+    return agent_fillable, human_required
+
+
+def check_destructive_action(action_text: str, keywords: set[str]) -> bool:
+    """Return True if the proposed action matches a destructive keyword."""
+    text_lower = action_text.lower()
+    return any(kw in text_lower for kw in keywords)
