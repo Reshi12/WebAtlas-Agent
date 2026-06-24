@@ -88,3 +88,48 @@ def make_verifier_node(llm: AgentLLM, config: dict[str, Any]):
             f"## Current Page URL\n{page_url}\n\n"
             f"## Current Page State\n{page_snapshot[:3000]}\n"
         )
+
+        messages = [{"role": "user", "content": context}]
+
+        try:
+            response = llm.client.complete(
+                system=VERIFY_SYSTEM_PROMPT,
+                messages=messages,
+                json_mode=True,
+            )
+            verification = json.loads(response)
+        except (json.JSONDecodeError, Exception) as exc:
+            logger.warning("Cheap model verification failed (%s), escalating", exc)
+            response = llm.client.complete(
+                system=VERIFY_SYSTEM_PROMPT,
+                messages=messages,
+                json_mode=True,
+            )
+            verification = json.loads(response)
+
+        success = verification.get("success", False)
+        confidence = verification.get("confidence", "low")
+        reason = verification.get("reason", "")
+        should_continue = verification.get("should_continue", True)
+
+        logger.info(
+            "[verifier] success=%s confidence=%s: %s",
+            success, confidence, reason,
+        )
+
+        # Low confidence → double-check with strong model
+        if confidence == "low" and not state.get("used_strong_model_this_step", False):
+            logger.info("[verifier] Low confidence — double-checking with strong model")
+            response2 = llm.client.complete(
+                system=VERIFY_SYSTEM_PROMPT,
+                messages=messages,
+                json_mode=True,
+            )
+            verification2 = json.loads(response2)
+            success = verification2.get("success", success)
+            reason = verification2.get("reason", reason)
+            should_continue = verification2.get("should_continue", should_continue)
+
+        if success:
+            if not should_continue:
+                logger.info("[verifier] Step succeeded but cannot continue: %s", reason)
