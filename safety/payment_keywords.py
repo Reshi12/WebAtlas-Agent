@@ -48,3 +48,28 @@ def check_payment_url(url: str, keywords: set[str], domains: set[str]) -> bool:
     for kw in keywords:
         if kw in url_lower:
             return True
+
+    # Check domain
+    from urllib.parse import urlparse
+
+    try:
+        domain = urlparse(url_lower).netloc
+    except Exception:
+        domain = ""
+
+    for d in domains:
+        if domain == d or domain.endswith("." + d):
+            return True
+
+    return False
+
+
+def check_payment_text(snapshot_text: str, keywords: set[str]) -> bool:
+    """Return True if the page snapshot contains payment-related text."""
+    text_lower = snapshot_text.lower()
+    matches = [kw for kw in keywords if kw in text_lower]
+    # Require at least 2 keyword matches to reduce false positives
+    return len(matches) >= 2
+
+
+def detect_personal_info_fields(
