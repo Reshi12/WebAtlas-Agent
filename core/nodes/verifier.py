@@ -133,3 +133,45 @@ def make_verifier_node(llm: AgentLLM, config: dict[str, Any]):
         if success:
             if not should_continue:
                 logger.info("[verifier] Step succeeded but cannot continue: %s", reason)
+                return {
+                    "status": "done",
+                    "error_message": f"Task cannot continue: {reason}",
+                }
+            return {
+                "retry_count": 0,
+                "error_message": None,
+                "used_strong_model_this_step": False,
+            }
+        else:
+            return _handle_failure(state, retry_count, max_retries, reason)
+
+    return verifier_node
+
+
+def _handle_failure(
+    state: AgentState,
+    retry_count: int,
+    max_retries: int,
+    reason: str,
+) -> dict[str, Any]:
+    """Handle a step failure: retry or escalate to replan."""
+    if retry_count < max_retries:
+        logger.info(
+            "[verifier] Step failed (attempt %d/%d): %s — retrying",
+            retry_count + 1, max_retries, reason,
+        )
+        return {
+            "retry_count": retry_count + 1,
+            "error_message": reason,
+            "used_strong_model_this_step": False,
+        }
+    else:
+        logger.warning(
+            "[verifier] Step failed %d times — escalating to replan: %s",
+            max_retries, reason,
+        )
+        return {
+            "retry_count": retry_count + 1,
+            "error_message": reason,
+            "status": "running",  # replan node will handle this
+        }
