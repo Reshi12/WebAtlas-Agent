@@ -60,3 +60,34 @@ class AgentState(TypedDict, total=False):
     task: str  # original user instruction
     plan: list[PlanStep]  # planner output: ordered steps with backend tags
     current_step_index: int  # which step we're on (0-indexed)
+    step_history: list[StepRecord]  # audit trail of every action taken
+
+    # ── Page context ─────────────────────────────────────────────────────
+    page_url: str
+    page_domain: str
+    page_snapshot: str  # compact a11y-tree ref dump from agent-browser
+    page_classification: PageClassification | None
+
+    # ── Execution control ────────────────────────────────────────────────
+    status: Literal[
+        "running",
+        "awaiting_human",
+        "awaiting_payment_resume",
+        "failed",
+        "done",
+    ]
+    interrupt_reason: str | None  # "personal_info" | "login" | "payment" | "ambiguous" | "destructive"
+    interrupt_message: str | None
+    retry_count: int
+    max_retries: int
+    used_strong_model_this_step: bool
+
+    # ── Token tracking ───────────────────────────────────────────────────
+    tokens_by_backend: dict[str, int]  # {"agent_browser": N, "webwright": M}
+
+    # ── Persistence ──────────────────────────────────────────────────────
+    task_id: str
+
+    # ── Error state ──────────────────────────────────────────────────────
+    last_action_screenshot: str | None
+    error_message: str | None
