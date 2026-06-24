@@ -49,3 +49,54 @@ login page, or contains personal information fields.
   "is_payment_page": true/false,
   "is_login_page": true/false,
   "has_personal_info_fields": true/false,
+  "personal_info_field_labels": ["Name", "Phone", ...],
+  "other_field_labels": ["Search query", "Quantity", ...],
+  "reason": "Brief explanation of classification"
+}
+"""
+
+
+def make_safety_gate_node(llm: AgentLLM, config: dict[str, Any]):
+    """Factory: creates the safety gate node."""
+
+    keywords = load_safety_keywords(config)
+
+    def safety_gate_node(state: AgentState) -> dict[str, Any]:
+        """Classify the current page and enforce safety rules.
+
+        Returns a partial state update. If unsafe, sets interrupt fields
+        that will cause the graph to route to human_interrupt_node.
+        """
+        page_url = state.get("page_url", "")
+        page_snapshot = state.get("page_snapshot", "")
+        page_domain = state.get("page_domain", "")
+
+        logger.info("[safety_gate] Checking page: %s", page_url)
+
+        # ── Layer 1: Fast keyword check (no LLM) ────────────────────────
+        url_match = check_payment_url(
+            page_url,
+            keywords["payment_url_keywords"],
+            keywords["payment_domains"],
+        )
+        text_match = check_payment_text(
+            page_snapshot,
+            keywords["payment_text_keywords"],
+        )
+
+        # Clear match → skip LLM
+        if url_match and text_match:
+            logger.info("[safety_gate] Layer 1: PAYMENT detected (URL + text match)")
+            classification = PageClassification(
+                is_payment_page=True,
+                is_login_page=False,
+                has_personal_info_fields=False,
+                agent_fillable_fields=[],
+                human_required_fields=[],
+                reason=f"Payment page — URL contains payment keywords, "
+                       f"text contains payment-related fields. Domain: {page_domain}",
+            )
+            return enforce_safety_gate(state, classification)
+
+        # Clear negative — no URL match and no text match
+        if not url_match and not text_match and not _might_have_form_fields(page_snapshot):
