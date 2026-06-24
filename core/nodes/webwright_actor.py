@@ -140,3 +140,74 @@ def make_webwright_actor_node(
             success=success,
             attempt=state.get("retry_count", 0) + 1,
             tokens_used=getattr(llm.client, "total_tokens", 0),
+        )
+
+        history = list(state.get("step_history", []))
+        history.append(step_record)
+
+        tokens = dict(state.get("tokens_by_backend", {"agent_browser": 0, "webwright": 0}))
+        tokens["webwright"] = tokens.get("webwright", 0) + getattr(llm.client, "total_tokens", 0)
+
+        post_domain = state.get("page_domain", "")
+        if post_url:
+            try:
+                post_domain = urlparse(post_url).netloc
+            except Exception:
+                pass
+
+        return {
+            "step_history": history,
+            "tokens_by_backend": tokens,
+            "page_url": post_url,
+            "page_domain": post_domain,
+            "error_message": error_msg,
+        }
+
+    return webwright_actor_node
+
+
+def _build_search_query(user_task: str, step_task: str) -> str:
+    """Build a search query without an extra LLM call."""
+    combined = f"{user_task} {step_task}".strip()
+    return combined[:200] if combined else step_task
+
+
+def _is_synthesis_step(step_desc: str) -> bool:
+    lowered = step_desc.lower()
+    return any(
+        word in lowered
+        for word in ("synthesize", "summarize", "summary", "compile", "consolidate")
+    )
+
+
+def _latest_research_result(state: AgentState) -> str | None:
+    for record in reversed(state.get("step_history", [])):
+        if record.get("backend") != "webwright":
+            continue
+        if record.get("success") and record.get("result"):
+            return record["result"]
+    return None
+
+
+def _collect_urls(query: str, max_pages: int) -> list[str]:
+    urls: list[str] = []
+    seen: set[str] = set()
+
+    for url in _search_duckduckgo(query, max_pages):
+        if url not in seen:
+            seen.add(url)
+            urls.append(url)
+
+    return urls[:max_pages]
+
+
+def _search_duckduckgo(query: str, limit: int) -> list[str]:
+    try:
+        import httpx
+    except ImportError as exc:
+        raise ImportError("httpx required: pip install httpx") from exc
+
+    search_url = f"https://lite.duckduckgo.com/lite/?q={quote_plus(query)}"
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; Browseragent/1.0)"}
+
+    with httpx.Client(timeout=20, follow_redirects=True, headers=headers) as client:
