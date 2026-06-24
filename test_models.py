@@ -10,3 +10,9 @@ if not api_key:
     exit(1)
 
 client = genai.Client(api_key=api_key)
+try:
+    for model in client.models.list():
+        if "flash" in model.name:
+            print(model.name)
+except Exception as e:
+    print(f"Error listing models: {e}")
