@@ -151,3 +151,54 @@ def print_task_list(tasks: list[dict[str, Any]]) -> None:
     if not tasks:
         console.print("[dim]No saved tasks found.[/dim]")
         return
+
+    table = Table(show_header=True, header_style="bold", padding=(0, 1))
+    table.add_column("Task ID", style="cyan")
+    table.add_column("Status", style="yellow")
+    table.add_column("Task", style="white")
+    table.add_column("Saved At", style="dim")
+
+    for t in tasks:
+        table.add_row(
+            t["task_id"],
+            t["status"],
+            t["task"][:60],
+            t.get("saved_at", "")[:19],
+        )
+    console.print(table)
+
+
+# ── Main execution ───────────────────────────────────────────────────────────
+
+
+def run_agent(task: str, config: dict[str, Any], dry_run: bool = False) -> None:
+    """Run the agent on a task."""
+    from core.browser_session import BrowserSession
+    from core.graph import build_graph
+    from core.llm_provider import AgentLLM
+    from core.persistence import generate_task_id, save_state
+    from core.state import make_initial_state
+
+    # Initialise components
+    llm = AgentLLM(config)
+    browser = BrowserSession(config)
+    graph = build_graph(llm, browser, config)
+
+    task_id = generate_task_id()
+    initial_state = make_initial_state(task, task_id, dry_run=dry_run)
+
+    console.print(f"\n🚀 [bold]Task started...[/bold] (ID: {task_id})")
+    if dry_run:
+        console.print("[yellow]🏃 DRY RUN — no browser actions will be executed[/yellow]")
+
+    # Graph config for LangGraph (thread_id for checkpointer)
+    graph_config = {"configurable": {"thread_id": task_id}}
+
+    # ── Stream execution ─────────────────────────────────────────────────
+    try:
+        last_state = initial_state
+        for event in graph.stream(initial_state, config=graph_config, stream_mode="updates"):
+            for node_name, update in event.items():
+                last_state = {**last_state, **update}
+
+                # ── Handle interrupts ────────────────────────────────────
