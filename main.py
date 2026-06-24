@@ -100,3 +100,54 @@ def print_plan(plan: list[dict[str, Any]]) -> None:
             f"{icon} {backend}",
             step.get("step", ""),
         )
+    console.print(table)
+    console.print()
+
+
+def print_step_start(idx: int, total: int, backend: str, step: str) -> None:
+    """Print a step-start indicator."""
+    icon = "🌐" if backend == "agent_browser" else "🔎"
+    console.print(
+        f"{icon} [bold][Step {idx + 1}/{total} · {backend}][/bold] {step}"
+    )
+
+
+def print_step_result(record: dict[str, Any]) -> None:
+    """Print the result of a completed step."""
+    success = record.get("success", False)
+    if success:
+        console.print(f"  ✅ {record.get('result', 'Done')[:200]}")
+    else:
+        console.print(f"  ❌ {record.get('result', 'Failed')[:200]}")
+
+
+def print_interrupt(reason: str, message: str) -> None:
+    """Display an interrupt message and prompt for input."""
+    style = "red" if reason == "payment" else "yellow"
+    console.print(Panel(message, title="Agent Paused", border_style=style))
+
+
+def print_token_summary(tokens: dict[str, int], llm_tokens: dict[str, int]) -> None:
+    """Print the final token usage summary."""
+    console.print("\n📊 [bold]Token Usage[/bold]")
+    table = Table(show_header=True, header_style="bold", padding=(0, 1))
+    table.add_column("Category", style="cyan")
+    table.add_column("Tokens", style="green", justify="right")
+
+    ab = tokens.get("agent_browser", 0)
+    ww = tokens.get("webwright", 0)
+    total = ab + ww
+
+    table.add_row("agent-browser", f"{ab:,}")
+    table.add_row("webwright", f"{ww:,}")
+    table.add_row("LLM tokens", f"{llm_tokens.get('total', 0):,}")
+    table.add_row("[bold]Total[/bold]", f"[bold]{total:,}[/bold]")
+
+    console.print(table)
+
+
+def print_task_list(tasks: list[dict[str, Any]]) -> None:
+    """Display saved tasks for resume."""
+    if not tasks:
+        console.print("[dim]No saved tasks found.[/dim]")
+        return
