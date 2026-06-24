@@ -102,3 +102,55 @@ def check_more_steps(state: AgentState) -> str:
 
     if idx >= len(plan):
         return "end_node"
+
+    return "router"
+
+
+# ── Helper nodes ─────────────────────────────────────────────────────────────
+
+
+def advance_step_node(state: AgentState) -> dict[str, Any]:
+    """Advance to the next step in the plan."""
+    idx = state.get("current_step_index", 0)
+    plan = state.get("plan", [])
+    new_idx = idx + 1
+
+    logger.info("[advance] Step %d completed, moving to %d/%d", idx + 1, new_idx + 1, len(plan))
+
+    if new_idx >= len(plan):
+        return {
+            "current_step_index": new_idx,
+            "status": "done",
+            "retry_count": 0,
+        }
+
+    return {
+        "current_step_index": new_idx,
+        "retry_count": 0,
+        "used_strong_model_this_step": False,
+        "error_message": None,
+    }
+
+
+def end_node(state: AgentState) -> dict[str, Any]:
+    """Final node — mark task as done and save state."""
+    from core.persistence import save_state
+
+    final_status = state.get("status", "done")
+    if final_status not in ("done", "failed"):
+        final_status = "done"
+
+    logger.info("[end] Task finished with status: %s", final_status)
+
+    # Save final state
+    updated = dict(state)
+    updated["status"] = final_status
+    try:
+        save_state(updated)  # type: ignore[arg-type]
+    except Exception as exc:
+        logger.error("Failed to save final state: %s", exc)
+
+    return {"status": final_status}
+
+
+# ── Graph builder ────────────────────────────────────────────────────────────
