@@ -69,3 +69,74 @@ def make_webwright_actor_node(
             full_task += f"\n\nAdditional context: {details}"
 
         logger.info("[webwright] Executing step %d: %s", idx + 1, step_desc)
+
+        # Synthesis-only steps reuse the previous successful research result.
+        if _is_synthesis_step(step_desc):
+            prior = _latest_research_result(state)
+            if prior:
+                step_record = StepRecord(
+                    step=step_desc,
+                    backend="webwright",
+                    action=f"synthesize prior research: {full_task[:100]}",
+                    result=prior[:2000],
+                    success=True,
+                    attempt=state.get("retry_count", 0) + 1,
+                    tokens_used=0,
+                )
+                history = list(state.get("step_history", []))
+                history.append(step_record)
+                return {"step_history": history, "error_message": None}
+
+        step_output_dir = os.path.join(output_base, task_id, f"webwright_step{idx + 1}")
+        os.makedirs(step_output_dir, exist_ok=True)
+
+        if dry_run:
+            step_record = StepRecord(
+                step=step_desc,
+                backend="webwright",
+                action=f"[dry-run] research: {full_task[:100]}",
+                result="Dry run — no execution",
+                success=True,
+                attempt=state.get("retry_count", 0) + 1,
+                tokens_used=0,
+            )
+            history = list(state.get("step_history", []))
+            history.append(step_record)
+            return {"step_history": history}
+
+        result_text = ""
+        success = False
+        error_msg = None
+        post_url = state.get("page_url", "")
+
+        try:
+            query = _build_search_query(user_task, full_task)
+            urls = _collect_urls(query, max_pages)
+
+            if not urls:
+                error_msg = "No URLs found for research query"
+                result_text = error_msg
+            else:
+                excerpts = _fetch_pages(urls, page_timeout)
+                if not excerpts:
+                    error_msg = "Could not fetch content from search results"
+                    result_text = error_msg
+                else:
+                    result_text = _synthesize(llm, user_task, full_task, excerpts)
+                    success = True
+                    post_url = excerpts[0]["url"]
+                    _save_research_log(step_output_dir, query, excerpts, result_text)
+
+        except Exception as exc:
+            error_msg = str(exc)
+            logger.error("[webwright] %s", error_msg)
+            result_text = error_msg
+
+        step_record = StepRecord(
+            step=step_desc,
+            backend="webwright",
+            action=f"research: {full_task[:100]}",
+            result=result_text[:2000],
+            success=success,
+            attempt=state.get("retry_count", 0) + 1,
+            tokens_used=getattr(llm.client, "total_tokens", 0),
