@@ -94,3 +94,34 @@ def save_screenshot(task_id: str, filename: str, data: bytes) -> str:
 
 
 def list_saved_tasks() -> list[dict[str, Any]]:
+    """List all tasks that have saved state on disk.
+
+    Returns a list of dicts with ``task_id``, ``task``, ``status``,
+    and ``saved_at`` fields.
+    """
+    tasks: list[dict[str, Any]] = []
+    if not os.path.isdir(_LOG_DIR):
+        return tasks
+
+    for entry in os.listdir(_LOG_DIR):
+        state_path = _state_path(entry)
+        if os.path.exists(state_path):
+            try:
+                with open(state_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                tasks.append({
+                    "task_id": entry,
+                    "task": data.get("task", ""),
+                    "status": data.get("status", "unknown"),
+                    "saved_at": data.get("_saved_at", ""),
+                })
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    return sorted(tasks, key=lambda t: t.get("saved_at", ""), reverse=True)
+
+
+def generate_task_id() -> str:
+    """Generate a unique task ID based on timestamp."""
+    now = datetime.now(timezone.utc)
+    return f"task_{now.strftime('%Y%m%d_%H%M%S')}"
