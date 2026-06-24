@@ -163,3 +163,58 @@ def make_agent_browser_actor_node(
         # ── 4. Execute action (or dry-run) ───────────────────────────────
         if dry_run:
             action_result = {"success": True, "data": {"dry_run": True}}
+            logger.info("[DRY RUN] Would execute: %s %s %s", action, ref, value)
+        else:
+            action_result = _execute_action(browser, action, ref, value)
+
+        # ── 5. Wait for page to settle ───────────────────────────────────
+        if not dry_run and action_result.get("success"):
+            browser.wait()
+
+        # ── 6. Re-snapshot for safety gate ───────────────────────────────
+        post_snapshot = ""
+        post_url = current_url
+        if not dry_run:
+            post_url = browser.get_url()
+            post_snap = browser.snapshot()
+            if post_snap.get("success"):
+                post_snapshot = post_snap.get("data", {}).get("snapshot", "")
+
+        # ── 7. Build step record ─────────────────────────────────────────
+        step_record = StepRecord(
+            step=step_desc,
+            backend="agent_browser",
+            action=f"{action} {ref} {value}".strip(),
+            result=json.dumps(action_result.get("data", {})),
+            success=action_result.get("success", False),
+            attempt=state.get("retry_count", 0) + 1,
+            tokens_used=0,
+        )
+
+        # ── 8. Save screenshot ───────────────────────────────────────────
+        screenshot_path = None
+        if not dry_run and config.get("logging", {}).get("screenshots", True):
+            ts = datetime.now(timezone.utc).strftime("%H%M%S")
+            ss_filename = f"step{idx + 1}_{action}_{ts}.png"
+            from core.persistence import save_screenshot
+
+            try:
+                ss_result = browser.screenshot(
+                    f"logs/{task_id}/screenshots/{ss_filename}"
+                )
+                if ss_result.get("success"):
+                    screenshot_path = f"logs/{task_id}/screenshots/{ss_filename}"
+                    step_record["screenshot_path"] = screenshot_path
+            except Exception as exc:
+                logger.debug("Screenshot failed: %s", exc)
+
+        # Update step history
+        history = list(state.get("step_history", []))
+        history.append(step_record)
+
+        # Update token tracking
+        tokens = dict(state.get("tokens_by_backend", {"agent_browser": 0, "webwright": 0}))
+        tokens["agent_browser"] = tokens.get("agent_browser", 0) + getattr(model, "total_tokens", 0)
+
+        post_domain = ""
+        try:
