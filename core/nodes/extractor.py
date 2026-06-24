@@ -60,3 +60,34 @@ async def extract_page_data(
                     "title": getattr(result, "title", ""),
                     "status_code": getattr(result, "status_code", None),
                 },
+            }
+
+            # If an extraction schema was provided, try to apply it
+            if extraction_schema and result.success:
+                output["extracted_data"] = _apply_schema(
+                    result.markdown or "", extraction_schema
+                )
+
+            return output
+
+    except Exception as exc:
+        logger.error("Crawl4AI extraction failed for %s: %s", url, exc)
+        return {"success": False, "error": str(exc), "url": url}
+
+
+def extract_page_data_sync(
+    url: str,
+    extraction_schema: dict[str, Any] | None = None,
+    css_selector: str | None = None,
+) -> dict[str, Any]:
+    """Synchronous wrapper around ``extract_page_data``."""
+    import asyncio
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If there's already a running loop (e.g. inside LangGraph),
+            # create a new one in a thread
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
