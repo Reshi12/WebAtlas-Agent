@@ -82,3 +82,28 @@ def make_human_interrupt_node(config: dict[str, Any]):
         elif reason == "destructive":
             # User confirmed or denied a destructive action
             if response_lower in ("yes", "y", "proceed", "confirm"):
+                logger.info("[human_interrupt] Destructive action confirmed")
+                return {
+                    "status": "running",
+                    "interrupt_reason": None,
+                    "interrupt_message": None,
+                }
+            else:
+                logger.info("[human_interrupt] Destructive action denied — skipping step")
+                return {
+                    "status": "running",
+                    "interrupt_reason": None,
+                    "interrupt_message": None,
+                    "error_message": "User declined destructive action",
+                }
+
+        else:
+            # Generic resume
+            logger.info("[human_interrupt] Generic resume")
+            return {
+                "status": "running",
+                "interrupt_reason": None,
+                "interrupt_message": None,
+            }
+
+    return human_interrupt_node
