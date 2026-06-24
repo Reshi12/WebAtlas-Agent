@@ -30,3 +30,35 @@ def _log_dir(task_id: str) -> str:
     return os.path.join(_LOG_DIR, task_id)
 
 
+def save_state(state: AgentState) -> str:
+    """Persist the current AgentState to disk.
+
+    Returns the path of the saved file.
+    """
+    task_id = state.get("task_id", "unknown")
+    path = _state_path(task_id)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    # Add metadata
+    data: dict[str, Any] = dict(state)
+    data["_saved_at"] = datetime.now(timezone.utc).isoformat()
+
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, default=str)
+
+    logger.info("State saved to %s", path)
+    return path
+
+
+def load_state(task_id: str) -> AgentState | None:
+    """Load a previously saved AgentState from disk.
+
+    Returns None if no saved state exists for the given task_id.
+    """
+    path = _state_path(task_id)
+    if not os.path.exists(path):
+        logger.info("No saved state found for task %s", task_id)
+        return None
+
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
