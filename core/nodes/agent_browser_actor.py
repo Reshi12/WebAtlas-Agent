@@ -218,3 +218,55 @@ def make_agent_browser_actor_node(
 
         post_domain = ""
         try:
+            post_domain = urlparse(post_url).netloc
+        except Exception:
+            pass
+
+        return {
+            "page_url": post_url,
+            "page_domain": post_domain,
+            "page_snapshot": post_snapshot,
+            "step_history": history,
+            "used_strong_model_this_step": used_strong,
+            "tokens_by_backend": tokens,
+            "last_action_screenshot": screenshot_path,
+            "error_message": None if action_result.get("success") else action_result.get("error"),
+        }
+
+    return agent_browser_actor_node
+
+
+def _execute_action(
+    browser: BrowserSession, action: str, ref: str, value: str
+) -> dict[str, Any]:
+    """Dispatch a parsed action to the right BrowserSession method."""
+    action = action.lower().strip()
+
+    try:
+        if action == "click":
+            return browser.click(ref)
+        elif action == "fill":
+            return browser.fill(ref, value)
+        elif action == "select":
+            return browser.select(ref, value)
+        elif action == "check":
+            return browser.check(ref)
+        elif action == "type":
+            return browser.type_text(ref, value)
+        elif action == "press":
+            return browser.press(value)
+        elif action == "scroll":
+            parts = value.split()
+            direction = parts[0] if parts else "down"
+            amount = int(parts[1]) if len(parts) > 1 else 3
+            return browser.scroll(direction, amount)
+        elif action == "goto":
+            return browser.goto(value)
+        elif action == "back":
+            return browser.back()
+        else:
+            logger.warning("Unknown action '%s', attempting as click", action)
+            return browser.click(ref)
+    except Exception as exc:
+        logger.error("Action execution failed: %s", exc)
+        return {"success": False, "error": str(exc)}
