@@ -49,3 +49,54 @@ console = Console(force_terminal=True)
 
 
 def setup_logging(verbose: bool = False) -> None:
+    """Configure logging with Rich handler."""
+    level = logging.DEBUG if verbose else logging.WARNING
+    logging.basicConfig(
+        level=level,
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(console=console, rich_tracebacks=True, show_path=False)],
+    )
+    # Suppress noisy third-party loggers
+    for name in ("httpx", "httpcore", "openai", "groq", "urllib3"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
+def load_config(path: str = "config.yaml") -> dict[str, Any]:
+    """Load the YAML configuration file."""
+    if not os.path.exists(path):
+        console.print(f"[red]Config file not found: {path}[/red]")
+        console.print("Copy config.yaml.example to config.yaml and configure it.")
+        sys.exit(1)
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+# ── Display helpers ──────────────────────────────────────────────────────────
+
+
+def print_banner() -> None:
+    """Print the startup banner."""
+    banner = Text()
+    banner.append("🤖 ", style="bold")
+    banner.append("Autonomous Browser Agent", style="bold cyan")
+    banner.append(" v1.0", style="dim")
+    console.print(Panel(banner, border_style="cyan"))
+
+
+def print_plan(plan: list[dict[str, Any]]) -> None:
+    """Display the execution plan as a formatted table."""
+    console.print("\n📋 [bold]Execution Plan[/bold]")
+    table = Table(show_header=True, header_style="bold magenta", padding=(0, 1))
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Backend", style="cyan", width=16)
+    table.add_column("Step", style="white")
+
+    for i, step in enumerate(plan, 1):
+        backend = step.get("backend", "?")
+        icon = "🌐" if backend == "agent_browser" else "🔎"
+        table.add_row(
+            str(i),
+            f"{icon} {backend}",
+            step.get("step", ""),
+        )
