@@ -76,3 +76,28 @@ safety:
     - cancel
     - unsubscribe
     - remove
+    - modify booking
+    - revoke
+    - terminate
+
+# ── agent-browser Backend ────────────────────────────────────────────────────
+agent_browser:
+  binary: agent-browser
+  default_wait: networkidle
+  wait_timeout_ms: 30000
+  snapshot_flags:
+    - "-i"
+    - "--json"
+
+# ── Research Backend (webwright route) ───────────────────────────────────────
+# Uses the same LLM provider/API key as above — no separate model config.
+webwright:
+  output_dir: logs
+  max_pages: 2
+  page_timeout_seconds: 20
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging:
+  screenshots: true
+  save_snapshots: true
+  log_dir: logs
