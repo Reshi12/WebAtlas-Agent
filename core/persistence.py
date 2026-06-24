@@ -62,3 +62,35 @@ def load_state(task_id: str) -> AgentState | None:
 
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
+
+    # Strip metadata keys
+    data.pop("_saved_at", None)
+    logger.info("State loaded from %s", path)
+    return data  # type: ignore[return-value]
+
+
+def save_step_log(task_id: str, step_record: dict[str, Any]) -> None:
+    """Append a step record to the task's step log (JSONL format)."""
+    log_path = os.path.join(_log_dir(task_id), "steps.jsonl")
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+
+    record = {**step_record, "_timestamp": datetime.now(timezone.utc).isoformat()}
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, default=str) + "\n")
+
+
+def save_screenshot(task_id: str, filename: str, data: bytes) -> str:
+    """Save a screenshot to the task's log directory.
+
+    Returns the path of the saved screenshot.
+    """
+    dirpath = os.path.join(_log_dir(task_id), "screenshots")
+    os.makedirs(dirpath, exist_ok=True)
+    path = os.path.join(dirpath, filename)
+    with open(path, "wb") as f:
+        f.write(data)
+    logger.debug("Screenshot saved: %s", path)
+    return path
+
+
+def list_saved_tasks() -> list[dict[str, Any]]:
