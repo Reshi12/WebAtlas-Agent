@@ -3,3 +3,8 @@ import yaml
 
 def main():
     parser = argparse.ArgumentParser(description="Autonomous Browser Agent")
+    parser.add_argument("task", type=str, help="The task to perform", nargs="?")
+    parser.add_argument("--config", type=str, default="config.yaml", help="Path to config file")
+    parser.add_argument("--dry-run", action="store_true", help="Dry run without browser execution")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    
