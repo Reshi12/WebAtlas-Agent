@@ -1,0 +1,26 @@
+# ── LLM Configuration ────────────────────────────────────────────────────────
+llm:
+  provider: gemini                          # groq | gemini | openai | openai_compatible | nemotron | glm
+  model: gemini-flash-lite-latest
+  temperature: 0.1
+
+# ── Safety Rules ─────────────────────────────────────────────────────────────
+safety:
+  max_retries: 1
+
+  # Layer 1 — fast keyword/domain check (no LLM call)
+  payment_url_keywords:
+    - checkout
+    - payment
+    - pay
+    - billing
+    - "cart/review"
+    - "order/confirm"
+    - "order/summary"
+    - "order/place"
+
+  payment_domains:
+    - razorpay.com
+    - stripe.com
+    - payu.in
+    - paytm.com
