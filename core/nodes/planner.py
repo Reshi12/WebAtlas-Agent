@@ -142,3 +142,48 @@ def make_replan_node(llm: AgentLLM, config: dict[str, Any]):
 
         current_step = plan[current_idx] if current_idx < len(plan) else {"step": "unknown"}
 
+        context = (
+            f"Original task: {task}\n\n"
+            f"Current step (index {current_idx}): {json.dumps(current_step)}\n\n"
+            f"Error: {error}\n\n"
+            f"Recent step history:\n{json.dumps(history[-5:], indent=2)}\n\n"
+            f"Remaining plan:\n{json.dumps(plan[current_idx:], indent=2)}"
+        )
+
+        messages = [{"role": "user", "content": context}]
+
+        # Use strong model for replanning — it's a reasoning task
+        response = llm.client.complete(
+            system=REPLAN_SYSTEM_PROMPT,
+            messages=messages,
+            json_mode=True,
+        )
+
+        try:
+            parsed = json.loads(response)
+            new_steps = parsed if isinstance(parsed, list) else parsed.get("plan", [])
+        except (json.JSONDecodeError, KeyError, AttributeError, TypeError):
+            logger.error("Replan failed to produce valid JSON, keeping original plan")
+            return {"retry_count": 0}
+
+        # Rebuild the plan: keep completed steps + new remaining steps
+        completed = plan[:current_idx]
+        revised_plan: list[PlanStep] = completed + [
+            PlanStep(
+                step=s.get("step", ""),
+                backend=s.get("backend", "agent_browser"),
+                details=s.get("details", ""),
+            )
+            for s in new_steps
+        ]
+
+        logger.info("Plan revised — %d steps total (%d new)", len(revised_plan), len(new_steps))
+
+        return {
+            "plan": revised_plan,
+            "retry_count": 0,
+            "error_message": None,
+            "used_strong_model_this_step": True,
+        }
+
+    return replan_node
