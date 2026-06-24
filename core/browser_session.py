@@ -202,3 +202,52 @@ class BrowserSession:
 
             env = os.environ.copy()
             env["AGENT_BROWSER_HEADED"] = "1"
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                creationflags=creationflags,
+                env=env,
+            )
+            stdout = result.stdout.strip()
+            stderr = result.stderr.strip()
+
+            if result.returncode != 0:
+                logger.error(
+                    "agent-browser error (rc=%d): %s", result.returncode, stderr
+                )
+                return {
+                    "success": False,
+                    "error": stderr or f"Exit code {result.returncode}",
+                }
+
+            # Try to parse JSON output
+            if stdout:
+                try:
+                    return json.loads(stdout)
+                except json.JSONDecodeError:
+                    # Some commands return plain text
+                    return {"success": True, "data": {"text": stdout}}
+
+            return {"success": True, "data": {}}
+
+        except subprocess.TimeoutExpired:
+            logger.error("agent-browser timed out after %ds: %s", timeout, " ".join(cmd))
+            return {"success": False, "error": f"Command timed out after {timeout}s"}
+        except FileNotFoundError:
+            logger.error(
+                "agent-browser binary not found: %s. "
+                "Install with: npm i -g agent-browser && agent-browser install",
+                self.binary,
+            )
+            return {
+                "success": False,
+                "error": (
+                    f"'{self.binary}' not found. "
+                    "Install: npm i -g agent-browser && agent-browser install"
+                ),
+            }
