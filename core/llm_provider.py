@@ -166,3 +166,59 @@ class OpenAICompatibleProvider:
         json_mode: bool = False,
         temperature: float | None = None,
     ) -> str:
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system}] + messages,
+            "temperature": temperature if temperature is not None else self.default_temperature,
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+
+        response = self.client.chat.completions.create(**kwargs)
+        if response.usage:
+            self._total_tokens += response.usage.total_tokens
+        return response.choices[0].message.content or ""
+
+    @property
+    def total_tokens(self) -> int:
+        return self._total_tokens
+
+
+# ── Factory ──────────────────────────────────────────────────────────────────
+
+_PROVIDER_MAP: dict[str, type] = {
+    "groq": GroqProvider,
+    "gemini": GeminiProvider,
+    "openai": OpenAICompatibleProvider,
+    "openai_compatible": OpenAICompatibleProvider,
+    "nemotron": OpenAICompatibleProvider,
+    "glm": OpenAICompatibleProvider,
+}
+
+_API_KEY_ENV: dict[str, str] = {
+    "groq": "GROQ_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "openai_compatible": "OPENAI_API_KEY",
+    "nemotron": "OPENAI_API_KEY",
+    "glm": "OPENAI_API_KEY",
+}
+
+
+def _resolve_api_key(provider: str) -> str:
+    """Resolve the API key from environment variables."""
+    env_var = _API_KEY_ENV.get(provider, "OPENAI_API_KEY")
+    key = os.environ.get(env_var, "")
+    if not key:
+        raise ValueError(
+            f"API key not found: set {env_var} in your .env file or environment"
+        )
+    return key
+
+
+def create_provider(
+    provider_name: str,
+    model: str,
+    temperature: float = 0.1,
+) -> LLMProvider:
+    """Create an LLM provider instance from config values."""
