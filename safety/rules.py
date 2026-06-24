@@ -56,3 +56,32 @@ def enforce_safety_gate(
             interrupt_message=(
                 "🔒 Login page detected. Please log in manually in the browser\n"
                 "   window, then type 'done' to continue."
+            ),
+        )
+        return updates  # type: ignore[return-value]
+
+    # ── Rule 3: Personal-info fields — partial handoff ───────────────────
+    human_fields = page_classification.get("human_required_fields", [])
+    agent_fields = page_classification.get("agent_fillable_fields", [])
+    if human_fields:
+        filled_str = ", ".join(agent_fields) if agent_fields else "(none)"
+        needed_str = ", ".join(human_fields)
+        logger.info(
+            "SAFETY: Personal-info fields detected — agent filled [%s], "
+            "needs human for [%s]",
+            filled_str,
+            needed_str,
+        )
+        updates.update(
+            status="awaiting_human",
+            interrupt_reason="personal_info",
+            interrupt_message=(
+                f"📝 I've filled in: {filled_str}\n"
+                f"   Please fill in: {needed_str}\n"
+                f"   Type 'done' when ready and I'll review before submitting."
+            ),
+        )
+        return updates  # type: ignore[return-value]
+
+    # ── Page is safe — no interrupt ──────────────────────────────────────
+    return updates  # type: ignore[return-value]
