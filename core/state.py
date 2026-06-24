@@ -91,3 +91,31 @@ class AgentState(TypedDict, total=False):
     # ── Error state ──────────────────────────────────────────────────────
     last_action_screenshot: str | None
     error_message: str | None
+
+    # ── Dry-run mode ─────────────────────────────────────────────────────
+    dry_run: bool
+
+
+def make_initial_state(task: str, task_id: str, *, max_retries: int = 2, dry_run: bool = False) -> AgentState:
+    """Create a fresh AgentState with sane defaults for a new task."""
+    return AgentState(
+        task=task,
+        plan=[],
+        current_step_index=0,
+        step_history=[],
+        page_url="",
+        page_domain="",
+        page_snapshot="",
+        page_classification=None,
+        status="running",
+        interrupt_reason=None,
+        interrupt_message=None,
+        retry_count=0,
+        max_retries=max_retries,
+        used_strong_model_this_step=False,
+        tokens_by_backend={"agent_browser": 0, "webwright": 0},
+        task_id=task_id,
+        last_action_screenshot=None,
+        error_message=None,
+        dry_run=dry_run,
+    )
