@@ -282,3 +282,72 @@ def _fetch_pages(urls: list[str], timeout: float) -> list[dict[str, str]]:
 
 def _html_to_text(html: str) -> str:
     html = re.sub(r"(?is)<script.*?>.*?</script>", " ", html)
+    html = re.sub(r"(?is)<style.*?>.*?</style>", " ", html)
+    html = re.sub(r"(?is)<noscript.*?>.*?</noscript>", " ", html)
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = unescape(text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _extract_title(html: str) -> str:
+    match = re.search(r"(?is)<title[^>]*>(.*?)</title>", html)
+    if not match:
+        return ""
+    return unescape(re.sub(r"\s+", " ", match.group(1))).strip()
+
+
+def _synthesize(
+    llm: AgentLLM,
+    user_task: str,
+    step_task: str,
+    excerpts: list[dict[str, str]],
+) -> str:
+    blocks = []
+    for item in excerpts:
+        blocks.append(
+            f"Source: {item['title'] or item['url']}\nURL: {item['url']}\n{item['text']}"
+        )
+
+    combined = "\n\n---\n\n".join(blocks)
+    try:
+        return llm.client.complete(
+            system=SYNTHESIS_SYSTEM_PROMPT,
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        f"User task: {user_task}\n\n"
+                        f"Research step: {step_task}\n\n"
+                        f"Web excerpts:\n\n{combined}"
+                    ),
+                }
+            ],
+        )
+    except Exception as exc:
+        logger.warning("LLM synthesis unavailable (%s), returning fetched excerpts", exc)
+        return _format_raw_excerpts(excerpts)
+
+
+def _format_raw_excerpts(excerpts: list[dict[str, str]]) -> str:
+    lines = ["Top findings from fetched sources (LLM synthesis unavailable):"]
+    for item in excerpts:
+        preview = item["text"][:800].strip()
+        lines.append(f"\n• {item['title'] or item['url']}\n  {item['url']}\n  {preview}")
+    return "\n".join(lines)
+
+
+def _save_research_log(
+    output_dir: str,
+    query: str,
+    excerpts: list[dict[str, str]],
+    summary: str,
+) -> None:
+    payload = {
+        "query": query,
+        "sources": [{"url": e["url"], "title": e["title"]} for e in excerpts],
+        "summary": summary,
+    }
+    path = os.path.join(output_dir, "result.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2)
