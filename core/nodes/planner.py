@@ -46,3 +46,51 @@ Return a JSON object with a "plan" key containing an array of step objects:
 {
   "plan": [
     {"step": "description of what to do", "backend": "agent_browser"|"webwright", "details": "additional context"},
+    ...
+  ]
+}
+"""
+
+
+def make_planner_node(llm: AgentLLM, config: dict[str, Any]):
+    """Factory: creates the planner node function with closed-over LLM and config."""
+
+    def planner_node(state: AgentState) -> dict[str, Any]:
+        """Break the user's task into steps and assign backends."""
+        task = state["task"]
+        logger.info("Planning task: %s", task)
+
+        messages = [
+            {
+                "role": "user",
+                "content": f"Break this task into steps and assign backends:\n\n{task}",
+            }
+        ]
+
+        response = llm.client.complete(
+            system=PLANNER_SYSTEM_PROMPT,
+            messages=messages,
+            json_mode=True,
+        )
+
+        try:
+            parsed = json.loads(response)
+            raw_plan = parsed if isinstance(parsed, list) else parsed.get("plan", [])
+        except (json.JSONDecodeError, KeyError, AttributeError, TypeError) as exc:
+            logger.warning("Cheap model plan failed (%s), escalating to strong model", exc)
+            response = llm.client.complete(
+                system=PLANNER_SYSTEM_PROMPT,
+                messages=messages,
+                json_mode=True,
+            )
+            parsed = json.loads(response)
+            raw_plan = parsed if isinstance(parsed, list) else parsed.get("plan", [])
+
+        plan: list[PlanStep] = []
+        for entry in raw_plan:
+            plan.append(
+                PlanStep(
+                    step=entry.get("step", ""),
+                    backend=entry.get("backend", "agent_browser"),
+                    details=entry.get("details", ""),
+                )
