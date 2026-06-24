@@ -92,3 +92,97 @@ WebAtlas addresses these through intelligent routing, adaptive replanning, multi
 - **Smart Retry Logic**: Distinguishes between transient failures (retry) and hard blockers (replan)
 - **State Checkpointing**: Pause and resume long-running tasks from exact execution point
 - **Dry-Run Mode**: Validate execution plans before committing actions
+- **Comprehensive Logging**: Full audit trail with screenshots, timings, and token metrics
+
+### 6. **Multi-Provider LLM Support**
+- **Gemini** (Google) – Free tier, excellent cost efficiency
+- **Groq** – Ultra-low latency inference
+- **OpenAI** (GPT-4, GPT-3.5) – Advanced reasoning
+- **OpenAI-Compatible** (Nemotron, GLM, etc.) – Self-hosted or proprietary models
+
+---
+
+<a id="architecture"></a>
+## 📐 Architecture
+
+### Workflow Diagram
+
+```mermaid
+graph TD
+    A["User Request<br/>(Natural Language)"] -->|Parse Intent| B["Task Planner"]
+    B -->|Fast Model| C["Generate Execution Plan"]
+    C -->|Tag by Type| D{"Route"}
+    
+    D -->|Interactive| E["Interactive Mode"]
+    D -->|Research| F["Research Mode"]
+    
+    E -->|Browser Control| E1["DOM Navigator"]
+    E1 -->|Interact| E2["Action Executor"]
+    E2 -->|Capture| E3["State Manager"]
+    
+    F -->|Multi-Page| F1["Web Scraper"]
+    F1 -->|Parse| F2["Content Aggregator"]
+    F2 -->|Format| F3["Result Builder"]
+    
+    E3 -->|Result| G["Safety Gate"]
+    F3 -->|Result| G
+    
+    G -->|Pattern| G1["Fast Detection"]
+    G1 -->|Analysis| G2["LLM Classification"]
+    G2 -->|Decision| G3{"Safe?"}
+    
+    G3 -->|Yes| H["Verifier"]
+    G3 -->|Needs Action| I["Human Interrupt"]
+    I -->|Proceed| H
+    
+    H -->|✓ Success| J["Advance"]
+    H -->|⟳ Retryable| K["Retry"]
+    H -->|✗ Hard Fail| L["Replan"]
+    
+    J -->|More?| M{"Done?"}
+    K -->|Re-exec| D
+    L -->|New Plan| B
+    
+    M -->|No| D
+    M -->|Yes| N["Finalize"]
+    N -->|Checkpoint| O["Output<br/>Result + Audit + Tokens"]
+    
+    style A fill:#f59e0b,stroke:#333,color:#000
+    style B fill:#06b6d4,stroke:#333,color:#fff
+    style D fill:#ec4899,stroke:#333,color:#fff
+    style E fill:#06b6d4,stroke:#333,color:#fff
+    style F fill:#1e3a8a,stroke:#333,color:#fff
+    style G fill:#ea580c,stroke:#333,color:#fff
+    style H fill:#10b981,stroke:#333,color:#fff
+    style O fill:#f59e0b,stroke:#333,color:#000
+```
+
+### System Design
+
+```
+        ┌──────────────────────────────────────────────────────────────┐
+        │                   LANGGRAPH STATE MACHINE                    │
+        ├──────────────────────────────────────────────────────────────┤
+        │                                                              │
+        │  ┌────────────────────────────────────────────────────────┐  │
+        │  │  Task Planning Layer                                   │  │
+        │  │  • NLP understanding & decomposition                   │  │
+        │  │  • Backend routing (interactive vs research)           │  │
+        │  │  • Execution plan generation                           │  │
+        │  └────────────────────────────────────────────────────────┘  │
+        │                              ↓                               │
+        │  ┌────────────────────────────────────────────────────────┐  │
+        │  │  Execution Layer                                       │  │
+        │  │  ┌────────────────────┐  ┌──────────────────────────┐  │  │
+        │  │  │ Interactive Mode   │  │ Research Mode            │  │  │
+        │  │  │ • Browser session  │  │ • Web scraper            │  │  │
+        │  │  │ • DOM interaction  │  │ • Content extraction     │  │  │
+        │  │  │ • Screenshot mgmt  │  │ • Multi-page aggregation │  │  │
+        │  │  └────────────────────┘  └──────────────────────────┘  │  │
+        │  └────────────────────────────────────────────────────────┘  │
+        │                              ↓                               │
+        │  ┌────────────────────────────────────────────────────────┐  │
+        │  │  Safety Layer (Outside Both Backends)                  │  │
+        │  │  • Layer 1: Fast pattern detection                     │  │
+        │  │  • Layer 2: LLM contextual classification              │  │
+        │  │  • Layer 3: Human confirmation for sensitive ops       │  │
