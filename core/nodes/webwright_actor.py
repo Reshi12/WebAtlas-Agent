@@ -211,3 +211,74 @@ def _search_duckduckgo(query: str, limit: int) -> list[str]:
     headers = {"User-Agent": "Mozilla/5.0 (compatible; Browseragent/1.0)"}
 
     with httpx.Client(timeout=20, follow_redirects=True, headers=headers) as client:
+        response = client.get(search_url)
+        response.raise_for_status()
+        html = response.text
+
+    links = re.findall(
+        r'uddg=([^&"]+)',
+        html,
+    )
+    if links:
+        from urllib.parse import unquote
+
+        cleaned = []
+        for link in links:
+            url = unquote(link)
+            if url.startswith("http") and "duckduckgo.com" not in url:
+                cleaned.append(url)
+                if len(cleaned) >= limit:
+                    break
+        if cleaned:
+            return cleaned
+
+    links = re.findall(
+        r'class="result-link"[^>]*href="(https?://[^"]+)"',
+        html,
+    )
+    if not links:
+        links = re.findall(r'href="(https?://[^"]+)"', html)
+
+    cleaned: list[str] = []
+    for link in links:
+        if "duckduckgo.com" in link:
+            continue
+        cleaned.append(link)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
+
+
+def _fetch_pages(urls: list[str], timeout: float) -> list[dict[str, str]]:
+    try:
+        import httpx
+    except ImportError as exc:
+        raise ImportError("httpx required: pip install httpx") from exc
+
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; Browseragent/1.0)"}
+    excerpts: list[dict[str, str]] = []
+
+    with httpx.Client(timeout=timeout, follow_redirects=True, headers=headers) as client:
+        for url in urls:
+            try:
+                response = client.get(url)
+                if response.status_code >= 400:
+                    continue
+                text = _html_to_text(response.text)
+                if len(text) < 100:
+                    continue
+                excerpts.append(
+                    {
+                        "url": str(response.url),
+                        "title": _extract_title(response.text),
+                        "text": text[:6000],
+                    }
+                )
+            except Exception as exc:
+                logger.debug("Failed to fetch %s: %s", url, exc)
+
+    return excerpts
+
+
+def _html_to_text(html: str) -> str:
+    html = re.sub(r"(?is)<script.*?>.*?</script>", " ", html)
