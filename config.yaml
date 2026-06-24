@@ -24,3 +24,29 @@ safety:
     - stripe.com
     - payu.in
     - paytm.com
+    - paypal.com
+    - instamojo.com
+    - ccavenue.com
+    - cashfree.com
+    - phonepe.com
+    - juspay.in
+
+  payment_text_keywords:
+    - card number
+    - cvv
+    - expiry date
+    - upi id
+    - enter otp
+    - enter your pin
+    - credit card
+    - debit card
+    - net banking
+    - emi option
+    - pay now
+    - place order
+    - confirm payment
+
+  personal_info_fields:
+    - name
+    - full name
+    - first name
