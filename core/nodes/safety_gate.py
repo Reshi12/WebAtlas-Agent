@@ -100,3 +100,54 @@ def make_safety_gate_node(llm: AgentLLM, config: dict[str, Any]):
 
         # Clear negative — no URL match and no text match
         if not url_match and not text_match and not _might_have_form_fields(page_snapshot):
+            logger.info("[safety_gate] Layer 1: SAFE (no matches)")
+            classification = PageClassification(
+                is_payment_page=False,
+                is_login_page=False,
+                has_personal_info_fields=False,
+                agent_fillable_fields=[],
+                human_required_fields=[],
+                reason="No payment/login/personal-info indicators detected",
+            )
+            return enforce_safety_gate(state, classification)
+
+        # ── Layer 2: LLM confirmation (ambiguous case) ───────────────────
+        logger.info("[safety_gate] Layer 1 ambiguous — escalating to LLM (Layer 2)")
+
+        context = (
+            f"## Page URL\n{page_url}\n\n"
+            f"## Page Snapshot\n{page_snapshot[:4000]}\n"
+        )
+
+        try:
+            response = llm.client.complete(
+                system=SAFETY_CLASSIFICATION_PROMPT,
+                messages=[{"role": "user", "content": context}],
+                json_mode=True,
+            )
+            llm_result = json.loads(response)
+        except (json.JSONDecodeError, Exception) as exc:
+            logger.warning(
+                "Cheap model safety check failed (%s), escalating to strong", exc
+            )
+            response = llm.client.complete(
+                system=SAFETY_CLASSIFICATION_PROMPT,
+                messages=[{"role": "user", "content": context}],
+                json_mode=True,
+            )
+            llm_result = json.loads(response)
+
+        is_payment = llm_result.get("is_payment_page", False)
+        is_login = llm_result.get("is_login_page", False)
+        has_personal = llm_result.get("has_personal_info_fields", False)
+        reason = llm_result.get("reason", "")
+
+        # If LLM says payment but Layer 1 didn't catch it, double-check
+        # with strong model (correctness risk worth the extra tokens)
+        if is_payment and not url_match and not text_match:
+            logger.info("[safety_gate] LLM says payment but Layer 1 missed — "
+                        "double-checking with strong model")
+            response2 = llm.client.complete(
+                system=SAFETY_CLASSIFICATION_PROMPT,
+                messages=[{"role": "user", "content": context}],
+                json_mode=True,
