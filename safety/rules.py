@@ -85,3 +85,32 @@ def enforce_safety_gate(
 
     # ── Page is safe — no interrupt ──────────────────────────────────────
     return updates  # type: ignore[return-value]
+
+
+def requires_destructive_confirmation(action_description: str, keywords: set[str]) -> str | None:
+    """Check if an action needs explicit user confirmation before executing.
+
+    Returns a confirmation prompt string if the action is destructive,
+    or None if it's safe to proceed.
+    """
+    action_lower = action_description.lower()
+    matched = [kw for kw in keywords if kw in action_lower]
+    if matched:
+        return (
+            f"⚠️  This action appears destructive (matched: {', '.join(matched)}).\n"
+            f"   Action: {action_description}\n"
+            f"   Proceed? (yes/no)"
+        )
+    return None
+
+
+def is_awaiting_human(state: AgentState) -> bool:
+    """Guard clause: returns True if the agent should NOT act.
+
+    Both ``agent_browser_actor`` and ``webwright_actor`` call this before
+    doing anything — defense in depth on top of the graph-level routing.
+    """
+    return state.get("status", "running") in (
+        "awaiting_human",
+        "awaiting_payment_resume",
+    )
