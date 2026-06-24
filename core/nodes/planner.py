@@ -94,3 +94,51 @@ def make_planner_node(llm: AgentLLM, config: dict[str, Any]):
                     backend=entry.get("backend", "agent_browser"),
                     details=entry.get("details", ""),
                 )
+            )
+
+        logger.info("Plan created with %d steps", len(plan))
+        for i, s in enumerate(plan, 1):
+            logger.info("  %d. [%s] %s", i, s["backend"], s["step"])
+
+        return {
+            "plan": plan,
+            "current_step_index": 0,
+            "retry_count": 0,
+            "status": "running",
+        }
+
+    return planner_node
+
+
+# ── Replanner ────────────────────────────────────────────────────────────────
+
+REPLAN_SYSTEM_PROMPT = """\
+You are replanning a task for an autonomous browser agent. A step has failed
+repeatedly. Review the original plan, the step history (what was tried and
+what went wrong), and produce a revised plan starting from the current point.
+
+You may:
+- Rephrase the failing step to be more specific
+- Change the backend assignment (agent_browser ↔ webwright) if the current backend is a poor fit
+- Insert additional preparatory steps
+- Skip the step if it's no longer needed
+
+Return the same JSON format: {"plan": [{"step": "...", "backend": "...", "details": "..."}, ...]}
+Only include steps from the current point onward (already-completed steps
+are handled separately).
+"""
+
+
+def make_replan_node(llm: AgentLLM, config: dict[str, Any]):
+    """Factory: creates the replan node for recovering from repeated failures."""
+
+    def replan_node(state: AgentState) -> dict[str, Any]:
+        """Revise the plan after repeated failures on a step."""
+        task = state["task"]
+        current_idx = state.get("current_step_index", 0)
+        plan = state.get("plan", [])
+        history = state.get("step_history", [])
+        error = state.get("error_message", "Unknown error")
+
+        current_step = plan[current_idx] if current_idx < len(plan) else {"step": "unknown"}
+
