@@ -151,3 +151,52 @@ def make_safety_gate_node(llm: AgentLLM, config: dict[str, Any]):
                 system=SAFETY_CLASSIFICATION_PROMPT,
                 messages=[{"role": "user", "content": context}],
                 json_mode=True,
+            )
+            llm_result2 = json.loads(response2)
+            is_payment = llm_result2.get("is_payment_page", False)
+            reason = llm_result2.get("reason", reason)
+
+        # ── Handle personal-info field splitting ─────────────────────────
+        agent_fields: list[str] = []
+        human_fields: list[str] = []
+
+        if has_personal:
+            personal_labels = llm_result.get("personal_info_field_labels", [])
+            other_labels = llm_result.get("other_field_labels", [])
+            agent_fields, human_fields = detect_personal_info_fields(
+                personal_labels + other_labels,
+                keywords["personal_info_fields"],
+            )
+            # other_labels are agent-fillable by definition
+            agent_fields = other_labels + [
+                f for f in agent_fields if f not in other_labels
+            ]
+
+        classification = PageClassification(
+            is_payment_page=is_payment,
+            is_login_page=is_login,
+            has_personal_info_fields=has_personal,
+            agent_fillable_fields=agent_fields,
+            human_required_fields=human_fields,
+            reason=reason,
+        )
+
+        logger.info(
+            "[safety_gate] Layer 2 result — payment=%s login=%s personal=%s: %s",
+            is_payment, is_login, has_personal, reason,
+        )
+
+        return enforce_safety_gate(state, classification)
+
+    return safety_gate_node
+
+
+def _might_have_form_fields(snapshot: str) -> bool:
+    """Quick heuristic: does the snapshot look like it has form fields?"""
+    form_indicators = [
+        "textbox", "input", "password", "combobox", "checkbox",
+        "radio", "form", "submit", "button",
+    ]
+    snapshot_lower = snapshot.lower()
+    matches = sum(1 for ind in form_indicators if ind in snapshot_lower)
+    return matches >= 2
