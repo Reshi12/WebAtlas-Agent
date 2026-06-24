@@ -222,3 +222,59 @@ def create_provider(
     temperature: float = 0.1,
 ) -> LLMProvider:
     """Create an LLM provider instance from config values."""
+    provider_name = provider_name.lower()
+    if provider_name not in _PROVIDER_MAP:
+        raise ValueError(
+            f"Unknown provider '{provider_name}'. Supported: {list(_PROVIDER_MAP.keys())}"
+        )
+
+    cls = _PROVIDER_MAP[provider_name]
+    api_key = _resolve_api_key(provider_name)
+
+    kwargs: dict[str, Any] = {
+        "api_key": api_key,
+        "model": model,
+        "default_temperature": temperature,
+    }
+
+    # OpenAI-compatible variants may need a custom base_url
+    if provider_name in ("openai_compatible", "nemotron", "glm"):
+        base_url = os.environ.get("OPENAI_BASE_URL")
+        if base_url:
+            kwargs["base_url"] = base_url
+
+    return cls(**kwargs)  # type: ignore[return-value]
+
+
+# ── Two-tier manager ────────────────────────────────────────────────────────
+
+
+class AgentLLM:
+    """Manages the LLM from a single config block.
+
+    Usage::
+
+        llm = AgentLLM(config)
+        answer = llm.client.complete(system, messages)
+    """
+
+    def __init__(self, config: dict[str, Any]):
+        llm_cfg = config["llm"]
+        provider = llm_cfg["provider"]
+        temperature = llm_cfg.get("temperature", 0.1)
+
+        logger.info(
+            "Initialising LLM — provider=%s  model=%s",
+            provider,
+            llm_cfg["model"],
+        )
+
+        self.client: LLMProvider = create_provider(provider, llm_cfg["model"], temperature)
+        self.provider_name = provider
+
+    def get_total_tokens(self) -> dict[str, int]:
+        """Return total tokens used by the model."""
+        tokens = getattr(self.client, "total_tokens", 0)
+        return {
+            "total": tokens,
+        }
