@@ -108,3 +108,58 @@ def make_agent_browser_actor_node(
 
         snapshot_data = snapshot_result.get("data", {})
         snapshot_text = snapshot_data.get("snapshot", "")
+        refs = snapshot_data.get("refs", {})
+
+        # ── 2. Get current URL ───────────────────────────────────────────
+        current_url = browser.get_url()
+        domain = ""
+        try:
+            domain = urlparse(current_url).netloc
+        except Exception:
+            pass
+
+        # ── 3. Ask LLM to pick an action ────────────────────────────────
+        context = (
+            f"## Current Step\n{step_desc}\n\n"
+            f"## Additional Context\n{details}\n\n"
+            f"## Current URL\n{current_url}\n\n"
+            f"## Page Snapshot (interactive elements)\n{snapshot_text}\n\n"
+            f"## Available Refs\n{json.dumps(refs, indent=2)}"
+        )
+
+        messages = [{"role": "user", "content": context}]
+
+        # Start with cheap model; escalate if needed
+        model = llm.client
+        used_strong = False
+        try:
+            response = model.complete(
+                system=ACTION_SYSTEM_PROMPT,
+                messages=messages,
+                json_mode=True,
+            )
+            action_data = json.loads(response)
+        except (json.JSONDecodeError, Exception) as exc:
+            logger.warning("Cheap model failed (%s), escalating to strong", exc)
+            model = llm.client
+            used_strong = True
+            response = model.complete(
+                system=ACTION_SYSTEM_PROMPT,
+                messages=messages,
+                json_mode=True,
+            )
+            action_data = json.loads(response)
+
+        action = action_data.get("action", "")
+        ref = action_data.get("ref", "")
+        value = action_data.get("value", "")
+        reasoning = action_data.get("reasoning", "")
+
+        logger.info(
+            "[agent_browser] Action: %s %s %s — %s",
+            action, ref, value, reasoning,
+        )
+
+        # ── 4. Execute action (or dry-run) ───────────────────────────────
+        if dry_run:
+            action_result = {"success": True, "data": {"dry_run": True}}
