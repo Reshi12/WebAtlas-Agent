@@ -26,3 +26,31 @@ def make_human_interrupt_node(config: dict[str, Any]):
 
     def human_interrupt_node(state: AgentState) -> dict[str, Any]:
         """Pause the graph and wait for human input.
+
+        The ``interrupt()`` call suspends execution. When the user provides
+        input via ``graph.invoke(Command(resume=value), config)``, execution
+        resumes here with the user's response.
+        """
+        reason = state.get("interrupt_reason", "unknown")
+        message = state.get("interrupt_message", "Agent paused — please respond.")
+
+        logger.info("[human_interrupt] Pausing — reason: %s", reason)
+
+        # This suspends the graph and returns control to the CLI
+        human_response = interrupt({
+            "reason": reason,
+            "message": message,
+        })
+
+        # ── Execution resumes here after user responds ───────────────────
+        logger.info("[human_interrupt] Resumed with response: %s", human_response)
+
+        response_lower = str(human_response).strip().lower()
+
+        # Handle different resume scenarios
+        if reason == "payment":
+            # User completed payment manually
+            logger.info("[human_interrupt] Payment completed by user — resuming")
+            return {
+                "status": "running",
+                "interrupt_reason": None,
