@@ -50,3 +50,29 @@ safety:
     - name
     - full name
     - first name
+    - last name
+    - email
+    - e-mail
+    - phone
+    - mobile
+    - address
+    - street
+    - city
+    - state
+    - pincode
+    - zip code
+    - postal code
+    - dob
+    - date of birth
+    - id number
+    - passport
+    - aadhaar
+    - pan
+    - ssn
+    - driver license
+
+  destructive_action_keywords:
+    - delete
+    - cancel
+    - unsubscribe
+    - remove
