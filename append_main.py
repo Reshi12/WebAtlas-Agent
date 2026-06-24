@@ -18,3 +18,7 @@ def main():
     with open(args.config, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
         
+    run_agent(args.task, config, dry_run=args.dry_run)
+
+if __name__ == "__main__":
+    main()
